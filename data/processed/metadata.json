@@ -1,0 +1,173 @@
+{
+    "columns": {
+        "mayo": {
+            "sdtype": "categorical"
+        },
+        "plec": {
+            "sdtype": "categorical"
+        },
+        "Wiek": {
+            "sdtype": "numerical"
+        },
+        "witD": {
+            "sdtype": "numerical"
+        },
+        "alat": {
+            "sdtype": "numerical"
+        },
+        "albumina": {
+            "sdtype": "numerical"
+        },
+        "APTT": {
+            "sdtype": "numerical"
+        },
+        "ASPAT": {
+            "sdtype": "numerical"
+        },
+        "Bialko calkowite": {
+            "sdtype": "numerical"
+        },
+        "BILIRUBINA CA\u0141KOWITA": {
+            "sdtype": "numerical"
+        },
+        "CHOLESTEROL CA\u0141KOWITY": {
+            "sdtype": "numerical"
+        },
+        "CHOLESTEROL HDL": {
+            "sdtype": "numerical"
+        },
+        "CRP ULTRACZU\u0141E": {
+            "sdtype": "numerical"
+        },
+        "CHOLESTEROL LDL": {
+            "sdtype": "numerical"
+        },
+        "FERRYTYNA": {
+            "sdtype": "numerical"
+        },
+        "FOSFATAZA ALKALICZNA": {
+            "sdtype": "numerical"
+        },
+        "GGTP": {
+            "sdtype": "numerical"
+        },
+        "EGFR": {
+            "sdtype": "numerical"
+        },
+        "KWAS FOLIOWY": {
+            "sdtype": "numerical"
+        },
+        "KALPROTEKTYNA W KALE": {
+            "sdtype": "numerical"
+        },
+        "Kreatynina w surowicy": {
+            "sdtype": "numerical"
+        },
+        "BAZOFILE": {
+            "sdtype": "numerical"
+        },
+        "BAZOFILE#": {
+            "sdtype": "numerical"
+        },
+        "EOZYNOFILE": {
+            "sdtype": "numerical"
+        },
+        "EOZYNOFILIE#": {
+            "sdtype": "numerical"
+        },
+        "ERYTROBLASTY": {
+            "sdtype": "numerical"
+        },
+        "ERYTROBLASTY#": {
+            "sdtype": "numerical"
+        },
+        "ERYTROCYTY": {
+            "sdtype": "numerical"
+        },
+        "HEMATOKRYT": {
+            "sdtype": "numerical"
+        },
+        "HEMOGLOBINA": {
+            "sdtype": "numerical"
+        },
+        "LEUKOCYTY": {
+            "sdtype": "numerical"
+        },
+        "LIMFOCYTY": {
+            "sdtype": "numerical"
+        },
+        "LIMFOCYTY#": {
+            "sdtype": "numerical"
+        },
+        "MCH": {
+            "sdtype": "numerical"
+        },
+        "MCHC": {
+            "sdtype": "numerical"
+        },
+        "MCV": {
+            "sdtype": "numerical"
+        },
+        "MONOCYTY": {
+            "sdtype": "numerical"
+        },
+        "MONOCYTY#": {
+            "sdtype": "numerical"
+        },
+        "MPV": {
+            "sdtype": "numerical"
+        },
+        "NEUTROFILE": {
+            "sdtype": "numerical"
+        },
+        "NEUTROFILE#": {
+            "sdtype": "numerical"
+        },
+        "NIEDOJRZA\u0141E GRANULOCYTY": {
+            "sdtype": "numerical"
+        },
+        " Morfologia P-LCR": {
+            "sdtype": "numerical"
+        },
+        "Morfologia PCT": {
+            "sdtype": "numerical"
+        },
+        " Morfologia PDW": {
+            "sdtype": "numerical"
+        },
+        " Morfologia PLT": {
+            "sdtype": "numerical"
+        },
+        " Morfologia RDW-CV": {
+            "sdtype": "numerical"
+        },
+        " Morfologia RDW-SD": {
+            "sdtype": "numerical"
+        },
+        " OB": {
+            "sdtype": "numerical"
+        },
+        "PT (CZAS PROTROMBINOWY) INR": {
+            "sdtype": "numerical"
+        },
+        "Potas": {
+            "sdtype": "numerical"
+        },
+        "S\u00f3d": {
+            "sdtype": "numerical"
+        },
+        "TIBC,": {
+            "sdtype": "numerical"
+        },
+        "UIBC": {
+            "sdtype": "numerical"
+        },
+        "TRANSFERYNA": {
+            "sdtype": "numerical"
+        },
+        "TR\u00d3JGLICERYDY": {
+            "sdtype": "numerical"
+        }
+    },
+    "METADATA_SPEC_VERSION": "SINGLE_TABLE_V1"
+}
