@@ -1,0 +1,20 @@
+name: uc_experiment
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python>=3.10
+  - catboost
+  - matplotlib
+  - numpy
+  - pandas
+  - seaborn
+  - scikit-learn
+  - pytorch
+  - jupyterlab
+  - ipykernel
+  - pip
+  - pip:
+    - fancyimpute
+    - imbalanced-learn
+    - sdv

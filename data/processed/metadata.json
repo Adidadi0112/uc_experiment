@@ -169,5 +169,11 @@
             "sdtype": "numerical"
         }
     },
-    "METADATA_SPEC_VERSION": "SINGLE_TABLE_V1"
+    "METADATA_SPEC_VERSION": "SINGLE_TABLE_V1",
+    "notebooks": [
+        "01_Imputation_Comparison.ipynb",
+        "02_Synthetic_Data.ipynb",
+        "03_Synthetic_Comparison.ipynb",
+        "03_Model_Benchmarks.ipynb"
+    ]
 }

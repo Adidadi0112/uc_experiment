@@ -1,0 +1,12 @@
+catboost
+fancyimpute
+imbalanced-learn
+matplotlib
+numpy
+pandas
+sdv
+seaborn
+scikit-learn
+torch
+jupyterlab
+ipykernel
