@@ -7,7 +7,7 @@ from sklearn.experimental import enable_iterative_imputer  # noqa: F401
 from sklearn.impute import IterativeImputer
 from sklearn.linear_model import LinearRegression
 from sklearn.neighbors import NearestNeighbors
-from fancyimpute import SoftImpute as _SoftImpute
+from scipy.linalg import svd
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -37,21 +37,49 @@ class _SklearnImputer:
 
 
 # ---------------------------------------------------------------------------
-# SoftImpute — re-solve on train∪test (Option 1)
+# SoftImpute — self-contained numpy/scipy implementation, no fancyimpute dep
 # ---------------------------------------------------------------------------
+
+def _soft_impute(X_nan: np.ndarray, max_rank: int = 10, max_iter: int = 100,
+                 tol: float = 1e-4, lambda_: float = 0.0) -> np.ndarray:
+    """
+    SoftImpute via iterative SVD soft-thresholding.
+    Fills NaNs with column means initially, then iterates.
+    lambda_=0 gives truncated SVD imputation (rank-constrained).
+    """
+    mask = np.isnan(X_nan)
+    Z = X_nan.copy()
+    # Initialise missing values with column means
+    col_means = np.nanmean(Z, axis=0)
+    for j in range(Z.shape[1]):
+        Z[mask[:, j], j] = col_means[j]
+
+    for _ in range(max_iter):
+        Z_old = Z.copy()
+        U, s, Vt = svd(Z, full_matrices=False)
+        # Soft-threshold singular values; with lambda_=0 just truncate to max_rank
+        s_thresh = np.maximum(s - lambda_, 0)[:max_rank]
+        Z_new = (U[:, :max_rank] * s_thresh) @ Vt[:max_rank, :]
+        # Only update previously-missing positions
+        Z[mask] = Z_new[mask]
+        if np.linalg.norm(Z - Z_old) / (np.linalg.norm(Z_old) + 1e-8) < tol:
+            break
+    return Z
+
 
 class _SoftImputeWrapper:
     def fit_transform(self, X: pd.DataFrame) -> pd.DataFrame:
         self._cols = X.columns
-        self._train_completed = _SoftImpute(verbose=False).fit_transform(X.values)
+        self._n_train = len(X)
+        self._train_completed = _soft_impute(X.values.astype(float))
         return pd.DataFrame(self._train_completed.copy(), columns=self._cols, index=X.index)
 
     def transform(self, X: pd.DataFrame) -> pd.DataFrame:
-        # Concat completed train + test-with-NaNs, re-solve, extract test rows
-        combined = np.vstack([self._train_completed, X.values])
-        completed = _SoftImpute(verbose=False).fit_transform(combined)
+        # Re-solve on train∪test (holding completed train values fixed)
+        combined = np.vstack([self._train_completed, X.values.astype(float)])
+        completed = _soft_impute(combined)
         return pd.DataFrame(
-            completed[len(self._train_completed):], columns=self._cols, index=X.index
+            completed[self._n_train:], columns=self._cols, index=X.index
         )
 
 

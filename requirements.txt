@@ -6,6 +6,5 @@ torch>=2.0
 catboost>=1.2
 imbalanced-learn>=0.12
 sdv>=1.10
-fancyimpute>=0.7
 matplotlib>=3.8
 seaborn>=0.13
