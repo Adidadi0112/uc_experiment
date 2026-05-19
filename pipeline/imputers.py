@@ -2,7 +2,7 @@
 
 import numpy as np
 import pandas as pd
-from sklearn.impute import SimpleImputer, KNNImputer
+from sklearn.impute import KNNImputer, SimpleImputer
 from sklearn.experimental import enable_iterative_imputer  # noqa: F401
 from sklearn.impute import IterativeImputer
 from sklearn.linear_model import LinearRegression
@@ -71,16 +71,14 @@ class _SoftImputeWrapper:
     def fit_transform(self, X: pd.DataFrame) -> pd.DataFrame:
         self._cols = X.columns
         self._n_train = len(X)
+        self._train_means = X.mean()
         self._train_completed = _soft_impute(X.values.astype(float))
         return pd.DataFrame(self._train_completed.copy(), columns=self._cols, index=X.index)
 
     def transform(self, X: pd.DataFrame) -> pd.DataFrame:
-        # Re-solve on train∪test (holding completed train values fixed)
-        combined = np.vstack([self._train_completed, X.values.astype(float)])
-        completed = _soft_impute(combined)
-        return pd.DataFrame(
-            completed[self._n_train:], columns=self._cols, index=X.index
-        )
+        # SoftImpute is transductive by design. For held-out folds we avoid
+        # peeking at test-feature distributions and use train-fold means.
+        return X.fillna(self._train_means).loc[:, self._cols]
 
 
 # ---------------------------------------------------------------------------
@@ -89,6 +87,9 @@ class _SoftImputeWrapper:
 
 class _GAINImputer:
     """GAIN (Generative Adversarial Imputation Nets) with fit/transform."""
+
+    def __init__(self, random_state: int = 42):
+        self.random_state = random_state
 
     class _G(nn.Module):
         def __init__(self, d):
@@ -146,6 +147,8 @@ class _GAINImputer:
 
     # -- public API --
     def fit_transform(self, X: pd.DataFrame) -> pd.DataFrame:
+        np.random.seed(self.random_state)
+        torch.manual_seed(self.random_state)
         data_x = X.values.astype(float)
         N, D = data_x.shape
         mask = 1.0 - np.isnan(data_x).astype(float)
@@ -265,18 +268,27 @@ class _PMMImputer:
 # Public factory
 # ---------------------------------------------------------------------------
 
-def get_imputer(method: str):
+def get_imputer(method: str, random_state: int = 42):
     """Return a fresh imputer with .fit_transform(X) / .transform(X) API."""
     if method == "mean":
-        return _SklearnImputer(SimpleImputer(strategy="mean"))
+        return _SklearnImputer(_with_keep_empty(SimpleImputer, strategy="mean"))
     if method == "mice":
-        return _SklearnImputer(IterativeImputer(max_iter=20, random_state=42))
+        return _SklearnImputer(
+            _with_keep_empty(IterativeImputer, max_iter=20, random_state=random_state)
+        )
     if method == "knn":
-        return _SklearnImputer(KNNImputer(n_neighbors=5))
+        return _SklearnImputer(_with_keep_empty(KNNImputer, n_neighbors=5))
     if method == "softimpute":
         return _SoftImputeWrapper()
     if method == "gain":
-        return _GAINImputer()
+        return _GAINImputer(random_state=random_state)
     if method == "pmm":
         return _PMMImputer()
     raise ValueError(f"Unknown imputation method: {method}")
+
+
+def _with_keep_empty(cls, **kwargs):
+    try:
+        return cls(**kwargs, keep_empty_features=True)
+    except TypeError:
+        return cls(**kwargs)

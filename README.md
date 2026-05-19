@@ -4,30 +4,29 @@ This project investigates how **missing-value imputation** and **synthetic data 
 
 ## Dataset
 
-- **251 patients**, **55 clinical lab features** (blood morphology, inflammatory markers, liver/kidney panels, lipid panels)
+- **252 patients**, **55 clinical lab features** (blood morphology, inflammatory markers, liver/kidney panels, lipid panels)
 - Target: `mayo` score (0 = remission, 1 = mild, 2 = moderate, 3 = severe)
 - Source: `data/raw/uc_diagnostic_tests.csv` (European decimal format)
 
 ## Pipeline Overview
 
 ```
-Raw Data (N=251, many NaNs)
+Raw Data (N=252, many NaNs)
     │
     ▼
-5 Imputation Methods ──► 9 Synthesis Strategies ──► 3 Classifiers
-(MICE, KNN, SoftImpute,   (none, SMOTE, ADASYN,     (Random Forest,
- GAIN, PMM)                CTGAN, TVAE,               CatBoost,
-                           SMOTE→CTGAN, SMOTE→TVAE,   Stacking)
-                           ADASYN→CTGAN, ADASYN→TVAE)
+Target Variants ──► Feature Variants ──► Imputation ──► Synthesis ──► Classifiers
+(4-class Mayo,       (all, missingness,    (mean, MICE,    (none, random,   (balanced RF,
+ binary 0-1 vs 2-3)   missing-drop,         KNN, SoftImpute, SMOTE, ADASYN,   ExtraTrees,
+                      fold-selected)       GAIN, PMM, raw) CTGAN/TVAE*)     CatBoost, etc.)
     │
     ▼
-5×2 Cross-Validation (10 folds)
+Strict leakage-free CV + exploratory optimistic split-after-augmentation lane
     │
     ▼
-Statistical Testing (Dietterich's 5×2 CV paired t-test + Holm-Bonferroni)
+Shortlist selection CV → final 5×2 CV → Dietterich paired tests
 ```
 
-**Total configurations evaluated:** 138 (5 imputation × 9 synthesis × 3 classifiers + 3 baseline) × 10 folds = 1,380 model trainings.
+\* GAN synthesis and nested hyperparameter tuning are available through flags because they are expensive.
 
 ## Project Structure
 
@@ -36,8 +35,9 @@ uc_experiment/
 ├── pipeline/                 # Refactored experiment code
 │   ├── config.py             # Constants, hyperparameters, method registries
 │   ├── imputers.py           # 6 imputation methods (fit/transform API)
-│   ├── synthesizers.py       # 9 synthesis strategies (single + mixed)
-│   ├── classifiers.py        # Classifier factory (RF, CatBoost, Stacking)
+│   ├── preprocessing.py      # Target/feature variants and fold-local transforms
+│   ├── synthesizers.py       # Synthesis strategies (single + mixed)
+│   ├── classifiers.py        # Classifier factory
 │   ├── stats.py              # 5×2 CV paired t-test, Holm-Bonferroni
 │   ├── visualize.py          # All plotting functions
 │   └── run.py                # Main experiment runner
@@ -76,7 +76,26 @@ conda activate uc_experiment
 python -m pipeline.run
 ```
 
-> **Note:** The full experiment takes approximately **5–8 hours** due to CTGAN/TVAE training (150 epochs × ~300 GAN runs across all folds). Plan to run overnight.
+The default run evaluates both strict and exploratory lanes for both targets using the focused profile. Useful alternatives:
+
+```bash
+# Strict 4-class only, focused profile
+python -m pipeline.run --lane strict --target mayo_4class
+
+# Binary severity target only
+python -m pipeline.run --lane strict --target severity_binary
+
+# Reproduce the older broad grid shape without the new raw-CatBoost lane
+python -m pipeline.run --profile legacy --lane strict --target mayo_4class
+
+# Include CTGAN/TVAE/mixed GAN synthesis in the focused profile
+python -m pipeline.run --include-gans
+
+# Include nested RF/CatBoost randomized-search models
+python -m pipeline.run --include-tuned
+```
+
+> **Note:** `--include-gans` and `--include-tuned` can be very slow. Use them after the focused strict run identifies promising target/feature/imputation regions.
 
 ### Outputs
 
@@ -84,13 +103,18 @@ All results are saved to the `results/` directory:
 
 | File | Description |
 |---|---|
-| `all_fold_results.csv` | Raw per-fold scores (1,380 rows) |
-| `summary.csv` | Mean ± std per configuration (138 rows) |
+| `strict_selection_results.csv` | Leakage-free model-selection CV fold scores |
+| `strict_selection_summary.csv` | Selection CV aggregates used for shortlisting |
+| `strict_final_results.csv` | Final 5×2 CV fold scores for shortlisted configs |
+| `strict_final_summary.csv` | Final strict mean ± std per configuration |
+| `exploratory_results.csv` | Optimistic notebook-style split-after-augmentation scores |
+| `exploratory_summary.csv` | Optimistic lane aggregate scores |
+| `all_fold_results.csv` | Compatibility alias for `strict_final_results.csv` |
+| `summary.csv` | Compatibility alias for `strict_final_summary.csv` |
 | `statistical_tests.csv` | Paired t-test results with Holm-Bonferroni correction |
-| `imputation_impact.png` | Bar chart: imputation methods vs balanced accuracy |
-| `synthesis_impact.png` | Bar chart: synthesis methods vs balanced accuracy |
-| `heatmap_*.png` | Imputation × synthesis heatmap per classifier |
-| `best_confusion_matrix.png` | Confusion matrix for the top configuration |
+| `imputation_impact_*.png` | Target-specific imputation impact charts |
+| `synthesis_impact_*.png` | Target-specific synthesis impact charts |
+| `best_strict_final_confusion_matrix.png` | Confusion matrix for the top strict final configuration |
 | `statistical_tests.png` | Significance plot for targeted comparisons |
 
 ## Methodology
@@ -108,6 +132,7 @@ All results are saved to the `results/` directory:
 | Method | Type | Description |
 |---|---|---|
 | **none** | Baseline | No augmentation |
+| **RandomOverSampler** | Oversampling | Duplicates minority-class rows as a robust class-balance baseline |
 | **SMOTE** | Oversampling | Synthetic Minority Over-sampling Technique |
 | **ADASYN** | Oversampling | Adaptive Synthetic Sampling (borderline-focused) |
 | **CTGAN** | Generative | Conditional Tabular GAN (150 epochs) |
@@ -118,6 +143,9 @@ All results are saved to the `results/` directory:
 | **ADASYN→TVAE** | Mixed | Adaptive balance, then generate |
 
 ### Evaluation
-- **Cross-validation:** 5×2 CV (Dietterich, 1998) — 5 repetitions of 2-fold stratified CV
-- **Primary metric:** Balanced Accuracy (handles class imbalance)
+- **Strict lane:** all preprocessing, imputation, synthesis, feature selection, and model fitting happen inside training folds; held-out folds contain real patients only.
+- **Exploratory lane:** split-after-augmentation benchmark that mirrors the optimistic notebook protocol and is labeled separately.
+- **Target variants:** 4-class Mayo `0/1/2/3` and grouped binary severity `0–1` vs `2–3`.
+- **Cross-validation:** selection CV for shortlisting, then final 5×2 CV (Dietterich, 1998).
+- **Primary metric:** Balanced Accuracy, with macro/weighted F1, per-class recall, ordinal error metrics, and binary ROC-AUC/PR-AUC where applicable.
 - **Statistical testing:** 5×2 CV paired t-test with Holm-Bonferroni correction for family-wise error rate control

@@ -19,8 +19,14 @@ def _save(fig, name):
 
 
 # ---------------------------------------------------------------------------
-def plot_imputation_impact(df: pd.DataFrame, baseline: dict | None = None):
+def plot_imputation_impact(
+    df: pd.DataFrame,
+    baseline: dict | None = None,
+    suffix: str = "",
+):
     """Bar chart: imputation × model with optional baseline lines and error bars."""
+    if df.empty:
+        return
     fig, ax = plt.subplots(figsize=(14, 8))
     sns.barplot(
         data=df, x="imputation", y="bal_acc_mean", hue="model",
@@ -38,11 +44,17 @@ def plot_imputation_impact(df: pd.DataFrame, baseline: dict | None = None):
     ax.set_ylabel("Balanced Accuracy")
     ax.legend(bbox_to_anchor=(1.05, 1), loc="upper left")
     fig.tight_layout()
-    _save(fig, "imputation_impact")
+    _save(fig, f"imputation_impact{suffix}")
 
 
-def plot_synthesis_impact(df: pd.DataFrame, baseline: dict | None = None):
+def plot_synthesis_impact(
+    df: pd.DataFrame,
+    baseline: dict | None = None,
+    suffix: str = "",
+):
     """Bar chart: synthesis × model with optional baseline lines and error bars."""
+    if df.empty:
+        return
     fig, ax = plt.subplots(figsize=(16, 8))
     sns.barplot(
         data=df, x="synthesis", y="bal_acc_mean", hue="model",
@@ -60,12 +72,14 @@ def plot_synthesis_impact(df: pd.DataFrame, baseline: dict | None = None):
     ax.tick_params(axis="x", rotation=30)
     ax.legend(bbox_to_anchor=(1.05, 1), loc="upper left")
     fig.tight_layout()
-    _save(fig, "synthesis_impact")
+    _save(fig, f"synthesis_impact{suffix}")
 
 
-def plot_heatmap(summary: pd.DataFrame, model_name: str):
+def plot_heatmap(summary: pd.DataFrame, model_name: str, suffix: str = ""):
     """Imputation × synthesis heatmap for one classifier."""
     sub = summary[summary["model"] == model_name]
+    if sub.empty:
+        return
     # Build annotation matrix: "mean\n±std"
     mean_m = sub.pivot(index="imputation", columns="synthesis", values="bal_acc_mean")
     std_m = sub.pivot(index="imputation", columns="synthesis", values="bal_acc_std")
@@ -75,10 +89,10 @@ def plot_heatmap(summary: pd.DataFrame, model_name: str):
     sns.heatmap(mean_m, annot=annot, fmt="", cmap="YlGnBu", ax=ax)
     ax.set_title(f"{model_name} — Balanced Accuracy (mean ± std)")
     fig.tight_layout()
-    _save(fig, f"heatmap_{model_name}")
+    _save(fig, f"heatmap_{model_name}{suffix}")
 
 
-def plot_confusion_matrix(y_true, y_pred, title: str):
+def plot_confusion_matrix(y_true, y_pred, title: str, name: str = "best_confusion_matrix"):
     cm = confusion_matrix(y_true, y_pred, normalize="true")
     fig, ax = plt.subplots(figsize=(8, 6))
     ConfusionMatrixDisplay(cm, display_labels=sorted(set(y_true))).plot(
@@ -87,7 +101,7 @@ def plot_confusion_matrix(y_true, y_pred, title: str):
     ax.set_title(title)
     ax.grid(False)
     fig.tight_layout()
-    _save(fig, "best_confusion_matrix")
+    _save(fig, name)
 
 
 def plot_statistical_tests(test_results: list[dict]):
