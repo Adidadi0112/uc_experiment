@@ -1,3 +1,0 @@
-comparison,t_stat,p_value,rank,adjusted_alpha,significant
-severity_binary: best overall vs best baseline,0.0,1.0,1,0.025,False
-severity_binary: best vs same-model baseline,0.0,1.0,2,0.05,False

@@ -114,9 +114,15 @@ def main():
     strict_final_results = pd.DataFrame()
     strict_final_summary = pd.DataFrame()
     strict_final_predictions = pd.DataFrame()
+    strict_selection_summary = pd.DataFrame()
 
     if args.lane in {"strict", "both"}:
-        strict_final_results, strict_final_summary, strict_final_predictions = run_strict(
+        (
+            strict_final_results,
+            strict_final_summary,
+            strict_final_predictions,
+            strict_selection_summary,
+        ) = run_strict(
             df, configs, args, out
         )
 
@@ -129,7 +135,11 @@ def main():
         if test_results:
             pd.DataFrame(test_results).to_csv(out / "statistical_tests.csv", index=False)
             viz.plot_statistical_tests(test_results)
-        _plot_final_outputs(strict_final_summary, strict_final_predictions)
+        _plot_strict_outputs(
+            strict_final_summary,
+            strict_final_predictions,
+            strict_selection_summary,
+        )
 
     print("Done.")
 
@@ -168,7 +178,7 @@ def _parse_args():
     parser.add_argument(
         "--include-gans",
         action="store_true",
-        help="Add CTGAN/TVAE and mixed GAN synthesis to focused profile.",
+        help="Add CTGAN/TVAE and mixed GAN synthesis to focused/full profiles.",
     )
     parser.add_argument(
         "--include-tuned",
@@ -210,7 +220,9 @@ def build_configs(args, target_variants: list[str]) -> list[ExperimentConfig]:
     elif args.profile == "full":
         feature_variants = FEATURE_VARIANTS
         imputations = IMPUTATION_METHODS
-        synths = ALL_SYNTH
+        synths = FOCUSED_SYNTH.copy()
+        if args.include_gans:
+            synths = _unique(synths + GAN_SYNTH)
         models = CLASSIFIERS.copy()
     else:
         feature_variants = FOCUSED_FEATURE_VARIANTS
@@ -322,7 +334,7 @@ def run_strict(df, configs, args, out: Path):
                 .to_string(index=False)
             )
 
-    return final_results, final_summary, final_predictions
+    return final_results, final_summary, final_predictions, selection_summary
 
 
 def _run_cv(df, configs, stage: str, n_splits: int, n_repeats: int):
@@ -812,22 +824,22 @@ def _run_statistical_tests(results_df, summary):
         sub = sub[sub["n_success"] == n_folds]
         if sub.empty:
             continue
-        best = sub.sort_values("balanced_accuracy_mean", ascending=False).iloc[0]
-        baselines = sub[
-            (sub["imputation"] == BASELINE_IMPUTATION)
-            & (sub["synthesis"] == "none")
-            & (sub["feature_variant"] == "all")
-            & (sub["outlier_policy"] == "none")
-        ].sort_values("balanced_accuracy_mean", ascending=False)
+        baseline_mask = _baseline_mask(sub)
+        baselines = sub[baseline_mask].sort_values("balanced_accuracy_mean", ascending=False)
+        non_baselines = sub[~baseline_mask].sort_values("balanced_accuracy_mean", ascending=False)
         if baselines.empty:
             continue
+        if non_baselines.empty:
+            print(f"No non-baseline configs available for statistical tests: {target_variant}")
+            continue
 
+        best = non_baselines.iloc[0]
         best_scores = _scores_for_config(results_df, best)
         base_scores = _scores_for_config(results_df, baselines.iloc[0])
         if len(best_scores) == n_folds and len(base_scores) == n_folds:
             _add_pair(
                 comparisons,
-                f"{target_variant}: best overall vs best baseline",
+                f"{target_variant}: best non-baseline vs best baseline",
                 best_scores,
                 base_scores,
             )
@@ -846,6 +858,15 @@ def _run_statistical_tests(results_df, summary):
     return holm_bonferroni(comparisons) if comparisons else []
 
 
+def _baseline_mask(df):
+    return (
+        (df["imputation"] == BASELINE_IMPUTATION)
+        & (df["synthesis"] == "none")
+        & (df["feature_variant"] == "all")
+        & (df["outlier_policy"] == "none")
+    )
+
+
 def _scores_for_config(results_df, config_row):
     mask = pd.Series(True, index=results_df.index)
     for col in CONFIG_COLUMNS:
@@ -861,11 +882,68 @@ def _add_pair(comparisons, label, scores_a, scores_b):
     )
 
 
-def _plot_final_outputs(summary, predictions):
-    if summary.empty:
+def _plot_strict_outputs(final_summary, final_predictions, selection_summary):
+    if not selection_summary.empty:
+        _plot_selection_impact_outputs(selection_summary)
+
+    if final_summary.empty:
         return
 
-    plot_ready = summary.rename(
+    for target_variant in final_summary["target_variant"].unique():
+        viz.plot_top_configs(
+            final_summary,
+            target_variant,
+            suffix=f"_{target_variant}",
+        )
+
+    best = final_summary.sort_values("balanced_accuracy_mean", ascending=False).iloc[0]
+    if final_predictions.empty:
+        return
+    pred_mask = pd.Series(True, index=final_predictions.index)
+    for col in CONFIG_COLUMNS:
+        pred_mask &= final_predictions[col] == best[col]
+    best_preds = final_predictions[pred_mask]
+    if not best_preds.empty:
+        viz.plot_confusion_matrix(
+            best_preds["y_true"],
+            best_preds["y_pred"],
+            title=f"Best strict final: {best['target_variant']} {best['model']}",
+            name="best_strict_final_confusion_matrix",
+        )
+
+
+def _plot_selection_impact_outputs(selection_summary):
+    plot_ready = _rename_summary_for_plots(selection_summary)
+    for target_variant in plot_ready["target_variant"].unique():
+        sub = plot_ready[
+            (plot_ready["target_variant"] == target_variant)
+            & (plot_ready["feature_variant"] == "all")
+            & (plot_ready["outlier_policy"] == "none")
+            & (plot_ready["imputation"] != RAW_IMPUTATION)
+        ].copy()
+        if sub.empty:
+            continue
+
+        baseline = sub[
+            (sub["imputation"] == BASELINE_IMPUTATION)
+            & (sub["synthesis"] == "none")
+        ]
+        baseline_dict = dict(zip(baseline["model"], baseline["bal_acc_mean"]))
+
+        viz.plot_imputation_impact(
+            _aggregate_impact(sub, ["imputation", "model"]),
+            baseline_dict,
+            suffix=f"_selection_{target_variant}",
+        )
+        viz.plot_synthesis_impact(
+            _aggregate_impact(sub, ["synthesis", "model"]),
+            baseline_dict,
+            suffix=f"_selection_{target_variant}",
+        )
+
+
+def _rename_summary_for_plots(summary):
+    return summary.rename(
         columns={
             "balanced_accuracy_mean": "bal_acc_mean",
             "balanced_accuracy_std": "bal_acc_std",
@@ -875,44 +953,20 @@ def _plot_final_outputs(summary, predictions):
         }
     )
 
-    for target_variant in plot_ready["target_variant"].unique():
-        sub = plot_ready[
-            (plot_ready["target_variant"] == target_variant)
-            & (plot_ready["feature_variant"] == "all")
-            & (plot_ready["outlier_policy"] == "none")
-        ].copy()
-        if sub.empty:
-            continue
-        baseline = sub[
-            (sub["imputation"] == BASELINE_IMPUTATION)
-            & (sub["synthesis"] == "none")
-        ]
-        baseline_dict = dict(zip(baseline["model"], baseline["bal_acc_mean"]))
-        viz.plot_imputation_impact(
-            sub[sub["imputation"] != RAW_IMPUTATION],
-            baseline_dict,
-            suffix=f"_{target_variant}",
-        )
-        viz.plot_synthesis_impact(
-            sub[sub["imputation"] != RAW_IMPUTATION],
-            baseline_dict,
-            suffix=f"_{target_variant}",
-        )
 
-    best = summary.sort_values("balanced_accuracy_mean", ascending=False).iloc[0]
-    if predictions.empty:
-        return
-    pred_mask = pd.Series(True, index=predictions.index)
-    for col in CONFIG_COLUMNS:
-        pred_mask &= predictions[col] == best[col]
-    best_preds = predictions[pred_mask]
-    if not best_preds.empty:
-        viz.plot_confusion_matrix(
-            best_preds["y_true"],
-            best_preds["y_pred"],
-            title=f"Best strict final: {best['target_variant']} {best['model']}",
-            name="best_strict_final_confusion_matrix",
+def _aggregate_impact(df, group_cols):
+    if df.empty:
+        return df
+    return (
+        df.groupby(group_cols, as_index=False)
+        .agg(
+            bal_acc_mean=("bal_acc_mean", "mean"),
+            bal_acc_std=("bal_acc_mean", "std"),
+            f1_mean=("f1_mean", "mean"),
+            n_train_mean=("n_train_mean", "mean"),
         )
+        .fillna({"bal_acc_std": 0.0})
+    )
 
 
 def _write_legacy_aliases(results_df, summary_df):

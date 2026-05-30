@@ -115,11 +115,52 @@ def plot_statistical_tests(test_results: list[dict]):
     colors = ["green" if s else "salmon" for s in df["significant"]]
     ax.barh(df["comparison"], -np.log10(df["p_value"] + 1e-15), color=colors)
     ax.axvline(-np.log10(0.05), color="red", linestyle="--", label="α=0.05")
-    ax.set_xlabel("-log₁₀(p-value)")
+    ax.set_xlabel("-log10(p-value)")
     ax.set_title("Statistical Significance of Comparisons (Holm-Bonferroni)")
     ax.legend()
     fig.tight_layout()
     _save(fig, "statistical_tests")
+
+
+def plot_top_configs(
+    summary: pd.DataFrame,
+    target_variant: str,
+    suffix: str = "",
+    top_n: int = 15,
+):
+    """Horizontal bar chart for shortlisted final configs."""
+    if summary.empty:
+        return
+    sub = summary[summary["target_variant"] == target_variant].copy()
+    if sub.empty:
+        return
+
+    sub = sub.sort_values("balanced_accuracy_mean", ascending=False).head(top_n)
+    sub = sub.sort_values("balanced_accuracy_mean", ascending=True)
+    sub["label"] = (
+        sub["feature_variant"].astype(str)
+        + " | "
+        + sub["imputation"].astype(str)
+        + " | "
+        + sub["synthesis"].astype(str)
+        + " | "
+        + sub["model"].astype(str)
+    )
+
+    fig, ax = plt.subplots(figsize=(12, max(5, len(sub) * 0.45)))
+    ax.barh(
+        sub["label"],
+        sub["balanced_accuracy_mean"],
+        xerr=sub.get("balanced_accuracy_std"),
+        color="C0",
+        alpha=0.85,
+        capsize=3,
+    )
+    ax.set_xlabel("Balanced Accuracy")
+    ax.set_title(f"Top Strict Final Configurations — {target_variant}")
+    ax.set_xlim(left=0, right=min(1.0, max(0.55, sub["balanced_accuracy_mean"].max() + 0.08)))
+    fig.tight_layout()
+    _save(fig, f"top_strict_final_configs{suffix}")
 
 
 # ---------------------------------------------------------------------------

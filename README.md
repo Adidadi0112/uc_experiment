@@ -112,8 +112,9 @@ All results are saved to the `results/` directory:
 | `all_fold_results.csv` | Compatibility alias for `strict_final_results.csv` |
 | `summary.csv` | Compatibility alias for `strict_final_summary.csv` |
 | `statistical_tests.csv` | Paired t-test results with Holm-Bonferroni correction |
-| `imputation_impact_*.png` | Target-specific imputation impact charts |
-| `synthesis_impact_*.png` | Target-specific synthesis impact charts |
+| `imputation_impact_selection_*.png` | Target-specific selection-CV imputation impact charts |
+| `synthesis_impact_selection_*.png` | Target-specific selection-CV synthesis impact charts |
+| `top_strict_final_configs_*.png` | Compact target-specific charts for shortlisted final configs |
 | `best_strict_final_confusion_matrix.png` | Confusion matrix for the top strict final configuration |
 | `statistical_tests.png` | Significance plot for targeted comparisons |
 
