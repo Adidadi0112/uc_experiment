@@ -1,0 +1,5 @@
+comparison,t_stat,p_value,rank,adjusted_alpha,significant
+severity_binary: best vs same-model baseline,0.7361,0.494752,1,0.0125,False
+mayo_4class: best vs same-model baseline,0.512,0.630458,2,0.016667,False
+mayo_4class: best non-baseline vs best baseline,0.2399,0.819961,3,0.025,False
+severity_binary: best non-baseline vs best baseline,0.11,0.916676,4,0.05,False
