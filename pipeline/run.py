@@ -26,6 +26,7 @@ from sklearn.metrics import (
 )
 from sklearn.model_selection import RepeatedStratifiedKFold, train_test_split
 
+from . import synthesizers as synth
 from . import visualize as viz
 from .classifiers import get_classifier
 from .config import (
@@ -66,7 +67,6 @@ from .preprocessing import (
     target_labels,
 )
 from .stats import holm_bonferroni, paired_ttest_5x2cv
-from .synthesizers import augment
 
 warnings.filterwarnings("ignore")
 
@@ -97,6 +97,7 @@ class ExperimentConfig:
 
 def main():
     args = _parse_args()
+    _configure_runtime(args)
     out = Path(RESULTS_DIR)
     out.mkdir(exist_ok=True)
     _set_global_seed(RANDOM_SEED)
@@ -186,6 +187,42 @@ def _parse_args():
         help="Add nested RF/CatBoost randomized-search estimators.",
     )
     parser.add_argument(
+        "--feature-variants",
+        type=str,
+        default=None,
+        help="Comma-separated feature variants to run; overrides the selected profile.",
+    )
+    parser.add_argument(
+        "--imputation-methods",
+        type=str,
+        default=None,
+        help="Comma-separated imputation methods to run; overrides the selected profile.",
+    )
+    parser.add_argument(
+        "--synth-methods",
+        type=str,
+        default=None,
+        help="Comma-separated synthesis methods to run; overrides the selected profile.",
+    )
+    parser.add_argument(
+        "--models",
+        type=str,
+        default=None,
+        help="Comma-separated model names to run; overrides the selected profile.",
+    )
+    parser.add_argument(
+        "--ctgan-epochs",
+        type=int,
+        default=None,
+        help="Override CTGAN training epochs for faster screening.",
+    )
+    parser.add_argument(
+        "--tvae-epochs",
+        type=int,
+        default=None,
+        help="Override TVAE training epochs for faster screening.",
+    )
+    parser.add_argument(
         "--winsorize",
         action="store_true",
         help="Add 1st/99th percentile clipping as the outlier policy.",
@@ -203,6 +240,13 @@ def _parse_args():
         help="Debug helper: cap configs after deterministic grid construction.",
     )
     return parser.parse_args()
+
+
+def _configure_runtime(args):
+    if args.ctgan_epochs is not None:
+        synth.CTGAN_EPOCHS = args.ctgan_epochs
+    if args.tvae_epochs is not None:
+        synth.TVAE_EPOCHS = args.tvae_epochs
 
 
 def _select_target_variants(value: str) -> list[str]:
@@ -235,6 +279,35 @@ def build_configs(args, target_variants: list[str]) -> list[ExperimentConfig]:
     if args.include_tuned:
         models = _unique(models + TUNED_CLASSIFIERS)
 
+    feature_override = _csv_option(
+        args.feature_variants,
+        FEATURE_VARIANTS,
+        "feature variants",
+    )
+    imputation_override = _csv_option(
+        args.imputation_methods,
+        IMPUTATION_METHODS,
+        "imputation methods",
+    )
+    synth_override = _csv_option(
+        args.synth_methods,
+        ALL_SYNTH,
+        "synthesis methods",
+    )
+    model_override = _csv_option(
+        args.models,
+        _unique(CLASSIFIERS + TUNED_CLASSIFIERS),
+        "models",
+    )
+    if feature_override is not None:
+        feature_variants = feature_override
+    if imputation_override is not None:
+        imputations = imputation_override
+    if synth_override is not None:
+        synths = synth_override
+    if model_override is not None:
+        models = model_override
+
     outlier_policies = ["none", "winsorize"] if args.winsorize else ["none"]
     configs: list[ExperimentConfig] = []
 
@@ -256,7 +329,7 @@ def build_configs(args, target_variants: list[str]) -> list[ExperimentConfig]:
                                 )
                             )
 
-                raw_models = RAW_CLASSIFIERS if args.include_tuned else RAW_CLASSIFIERS[:2]
+                raw_models = [model for model in RAW_CLASSIFIERS if model in models]
                 if args.profile != "legacy" and feature_variant != "selected":
                     for model in raw_models:
                         configs.append(
@@ -278,6 +351,17 @@ def build_configs(args, target_variants: list[str]) -> list[ExperimentConfig]:
 
 def _unique(values):
     return list(dict.fromkeys(values))
+
+
+def _csv_option(value, valid_values: list[str], label: str):
+    if value is None:
+        return None
+    parsed = [item.strip() for item in value.split(",") if item.strip()]
+    invalid = sorted(set(parsed) - set(valid_values))
+    if invalid:
+        valid = ", ".join(valid_values)
+        raise SystemExit(f"Unknown {label}: {invalid}. Valid values: {valid}")
+    return _unique(parsed)
 
 
 def _dedupe_configs(configs):
@@ -481,7 +565,12 @@ def _prepare_fold_data(cfg, X_train_raw, X_test_raw, y_train, seed, fold_cache):
         fold_cache["base"][base_key] = (X_train.copy(), X_test.copy(), y_base.copy())
 
     if cfg.synthesis != "none":
-        X_train, y_train_aug = augment(X_train, y_base, cfg.synthesis, random_state=seed)
+        X_train, y_train_aug = synth.augment(
+            X_train,
+            y_base,
+            cfg.synthesis,
+            random_state=seed,
+        )
     else:
         X_train = X_train.reset_index(drop=True)
         y_train_aug = y_base.reset_index(drop=True)
@@ -626,7 +715,12 @@ def _prepare_full_data_optimistic(cfg, X_raw, y_raw, seed, full_cache):
         full_cache["base"][base_key] = (X_all.copy(), y_base.copy())
 
     if cfg.synthesis != "none":
-        X_all, y_all = augment(X_all, y_base, cfg.synthesis, random_state=seed)
+        X_all, y_all = synth.augment(
+            X_all,
+            y_base,
+            cfg.synthesis,
+            random_state=seed,
+        )
     else:
         X_all = X_all.reset_index(drop=True)
         y_all = y_base.reset_index(drop=True)

@@ -1,18 +1,12 @@
 """Classifier factory."""
 
-from sklearn.ensemble import ExtraTreesClassifier, RandomForestClassifier, StackingClassifier
+from sklearn.ensemble import RandomForestClassifier, StackingClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import RandomizedSearchCV, StratifiedKFold
 from catboost import CatBoostClassifier
-try:
-    from imblearn.ensemble import BalancedRandomForestClassifier, EasyEnsembleClassifier
-except Exception:  # pragma: no cover - optional dependency detail
-    BalancedRandomForestClassifier = None
-    EasyEnsembleClassifier = None
 
 from .config import (
     CB_ITERATIONS,
-    RF_ESTIMATORS,
     RANDOM_SEED,
     TUNING_CV_FOLDS,
     TUNING_N_ITER,
@@ -23,44 +17,15 @@ def get_classifier(name: str):
     """Return a fresh (unfitted) classifier instance."""
     if name == "rf":
         return RandomForestClassifier(
-            n_estimators=RF_ESTIMATORS, random_state=RANDOM_SEED
-        )
-    if name == "rf_balanced":
-        return RandomForestClassifier(
             n_estimators=300,
             min_samples_leaf=2,
             class_weight="balanced_subsample",
             random_state=RANDOM_SEED,
             n_jobs=-1,
         )
-    if name == "extra_trees":
-        return ExtraTreesClassifier(
-            n_estimators=500,
-            min_samples_leaf=2,
-            class_weight="balanced",
-            random_state=RANDOM_SEED,
-            n_jobs=-1,
-        )
-    if name == "balanced_rf":
-        if BalancedRandomForestClassifier is None:
-            return get_classifier("rf_balanced")
-        return BalancedRandomForestClassifier(
-            n_estimators=300,
-            min_samples_leaf=2,
-            random_state=RANDOM_SEED,
-            n_jobs=-1,
-        )
-    if name == "easy_ensemble":
-        if EasyEnsembleClassifier is None:
-            return get_classifier("rf_balanced")
-        return EasyEnsembleClassifier(
-            n_estimators=20,
-            random_state=RANDOM_SEED,
-            n_jobs=-1,
-        )
-    if name == "catboost":
-        return _catboost()
-    if name in {"catboost_balanced", "catboost_raw"}:
+    if name == "rf_balanced":
+        return get_classifier("rf")
+    if name in {"catboost", "catboost_balanced", "catboost_raw"}:
         return _catboost(auto_class_weights="Balanced")
     if name == "rf_tuned":
         return _tuned_random_forest()
@@ -69,8 +34,8 @@ def get_classifier(name: str):
     if name == "stacking":
         return StackingClassifier(
             estimators=[
-                ("rf", get_classifier("rf_balanced")),
-                ("cb", get_classifier("catboost_balanced")),
+                ("rf", get_classifier("rf")),
+                ("cb", get_classifier("catboost")),
             ],
             final_estimator=LogisticRegression(max_iter=1000, class_weight="balanced"),
             cv=3,

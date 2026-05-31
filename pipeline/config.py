@@ -48,23 +48,16 @@ GAN_SYNTH = ["ctgan", "tvae", "smote_ctgan", "smote_tvae", "adasyn_ctgan", "adas
 
 CLASSIFIERS = [
     "rf",
-    "rf_balanced",
-    "extra_trees",
     "catboost",
-    "catboost_balanced",
-    "balanced_rf",
-    "easy_ensemble",
     "stacking",
 ]
 FOCUSED_CLASSIFIERS = [
-    "rf_balanced",
-    "extra_trees",
-    "catboost_balanced",
-    "balanced_rf",
-    "easy_ensemble",
+    "rf",
+    "catboost",
+    "stacking",
 ]
 TUNED_CLASSIFIERS = ["rf_tuned", "catboost_tuned"]
-RAW_CLASSIFIERS = ["catboost", "catboost_balanced", "catboost_tuned"]
+RAW_CLASSIFIERS = ["catboost", "catboost_tuned"]
 
 # --- Cross-validation ---
 CV_REPEATS = 5

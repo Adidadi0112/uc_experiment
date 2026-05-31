@@ -15,9 +15,9 @@ Raw Data (N=252, many NaNs)
     │
     ▼
 Target Variants ──► Feature Variants ──► Imputation ──► Synthesis ──► Classifiers
-(4-class Mayo,       (all, missingness,    (mean, MICE,    (none, random,   (balanced RF,
- binary 0-1 vs 2-3)   missing-drop,         KNN, SoftImpute, SMOTE, ADASYN,   ExtraTrees,
-                      fold-selected)       GAIN, PMM, raw) CTGAN/TVAE*)     CatBoost, etc.)
+(4-class Mayo,       (all, missingness,    (mean, MICE,    (none, random,   (Random Forest,
+ binary 0-1 vs 2-3)   missing-drop,         KNN, SoftImpute, SMOTE, ADASYN,   CatBoost,
+                      fold-selected)       GAIN, PMM, raw) CTGAN/TVAE*)     Stacking)
     │
     ▼
 Strict leakage-free CV + exploratory optimistic split-after-augmentation lane
@@ -93,9 +93,22 @@ python -m pipeline.run --include-gans
 
 # Include nested RF/CatBoost randomized-search models
 python -m pipeline.run --include-tuned
+
+# Fast GAN screening: direct TVAE only, fewer epochs, targeted grid
+python -u -m pipeline.run --lane strict --target both --profile focused \
+  --synth-methods none,tvae \
+  --feature-variants all,drop_gt70_missing \
+  --imputation-methods mean,pmm,gain \
+  --models rf,catboost,stacking \
+  --tvae-epochs 30 \
+  2>&1 | tee run_gan_tvae_screen.log
 ```
 
 > **Note:** `--include-gans` and `--include-tuned` can be very slow. Use them after the focused strict run identifies promising target/feature/imputation regions.
+
+The normal model grid contains three classifier families: Random Forest, CatBoost, and a stacking ensemble combining both.
+
+The grid can also be narrowed with `--feature-variants`, `--imputation-methods`, `--synth-methods`, and `--models`. GAN epoch counts can be reduced for screening with `--ctgan-epochs` and `--tvae-epochs`; final reported runs should state the epoch setting used.
 
 ### Outputs
 
