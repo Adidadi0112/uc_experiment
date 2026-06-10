@@ -12,7 +12,7 @@ try:
 except Exception:  # pragma: no cover - depends on installed SDV version
     Condition = None
 
-from .config import TARGET, CTGAN_EPOCHS, TVAE_EPOCHS
+from .config import TARGET, CTGAN_EPOCHS, TVAE_EPOCHS, GAN_FAST_MODE
 
 warnings.filterwarnings("ignore")
 
@@ -87,11 +87,18 @@ def _generate_with_gan(X, y, synthesizer_cls, epochs, random_state):
     meta = SingleTableMetadata()
     meta.detect_from_dataframe(df_scaled)
     try:
+        for col in X_scaled.columns:
+            meta.update_column(column_name=col, sdtype="numerical")
         meta.update_column(column_name=TARGET, sdtype="categorical")
     except Exception:
         pass
 
-    synth = synthesizer_cls(meta, epochs=epochs, verbose=False)
+    synth = synthesizer_cls(
+        meta,
+        epochs=epochs,
+        verbose=False,
+        **_gan_kwargs(synthesizer_cls),
+    )
     synth.fit(df_scaled)
     synthetic = _sample_conditioned(synth, y, len(X))
 
@@ -136,6 +143,28 @@ def _coerce_generated_target(values, y_reference):
             else:
                 coerced.append(int(np.random.choice(known)))
     return pd.Series(coerced, name=TARGET).reset_index(drop=True)
+
+
+def _gan_kwargs(synthesizer_cls):
+    """Use smaller GAN/TVAE networks when running a fast screening pass."""
+    if not GAN_FAST_MODE:
+        return {}
+    if synthesizer_cls is CTGANSynthesizer:
+        return {
+            "embedding_dim": 32,
+            "generator_dim": (64, 64),
+            "discriminator_dim": (64, 64),
+            "batch_size": 128,
+            "pac": 1,
+        }
+    if synthesizer_cls is TVAESynthesizer:
+        return {
+            "embedding_dim": 32,
+            "compress_dims": (64,),
+            "decompress_dims": (64,),
+            "batch_size": 128,
+        }
+    return {}
 
 
 # ---------------------------------------------------------------------------

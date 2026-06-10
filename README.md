@@ -101,6 +101,7 @@ python -u -m pipeline.run --lane strict --target both --profile focused \
   --imputation-methods mean,pmm,gain \
   --models rf,catboost,stacking \
   --tvae-epochs 30 \
+  --fast-gans \
   2>&1 | tee run_gan_tvae_screen.log
 ```
 
@@ -108,7 +109,7 @@ python -u -m pipeline.run --lane strict --target both --profile focused \
 
 The normal model grid contains three classifier families: Random Forest, CatBoost, and a stacking ensemble combining both.
 
-The grid can also be narrowed with `--feature-variants`, `--imputation-methods`, `--synth-methods`, and `--models`. GAN epoch counts can be reduced for screening with `--ctgan-epochs` and `--tvae-epochs`; final reported runs should state the epoch setting used.
+The grid can also be narrowed with `--feature-variants`, `--imputation-methods`, `--synth-methods`, and `--models`. GAN epoch counts can be reduced for screening with `--ctgan-epochs` and `--tvae-epochs`; `--fast-gans` uses smaller CTGAN/TVAE networks. Final reported runs should state the epoch and fast-mode settings used.
 
 ### Outputs
 

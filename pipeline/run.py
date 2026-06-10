@@ -223,6 +223,11 @@ def _parse_args():
         help="Override TVAE training epochs for faster screening.",
     )
     parser.add_argument(
+        "--fast-gans",
+        action="store_true",
+        help="Use smaller CTGAN/TVAE networks for faster screening runs.",
+    )
+    parser.add_argument(
         "--winsorize",
         action="store_true",
         help="Add 1st/99th percentile clipping as the outlier policy.",
@@ -247,6 +252,8 @@ def _configure_runtime(args):
         synth.CTGAN_EPOCHS = args.ctgan_epochs
     if args.tvae_epochs is not None:
         synth.TVAE_EPOCHS = args.tvae_epochs
+    if args.fast_gans:
+        synth.GAN_FAST_MODE = True
 
 
 def _select_target_variants(value: str) -> list[str]:
