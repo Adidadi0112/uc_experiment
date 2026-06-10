@@ -3,3 +3,4 @@ __pycache__/
 *.pyc
 METHODS_FULL_RUN.txt
 EXPERIMENT_SUMMARY.md
+run_gan_tvae_screen.log
